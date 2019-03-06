@@ -188,7 +188,7 @@ int getOpts(int argc, char* argv[], Options& options)
 		{
 			case 'h':
 				printUsage();
-				return 0;
+				exit(0);
 			case 'c':
 				options.channels = getIntArg(opt, defaults.channels);
 				break;
