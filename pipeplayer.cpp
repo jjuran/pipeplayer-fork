@@ -297,7 +297,7 @@ int main(int argc, char* argv[])
 	if (result == 0)
 	{
 		DEBUG("allocating %d frame (%zu byte) ring buffer\n", ringBufferSize, sampleBufferSize);
-		sampleBuffer = PaUtil_AllocateMemory((long)sampleBufferSize);
+		sampleBuffer = malloc((long)sampleBufferSize);
 		if (sampleBuffer == nullptr)
 		{
 			FATAL("could not allocate memory for ring buffer\n");
@@ -460,7 +460,7 @@ int main(int argc, char* argv[])
 	if (sampleBuffer != nullptr)
 	{
 		DEBUG("freeing ring buffer\n");
-		PaUtil_FreeMemory(sampleBuffer);
+		free(sampleBuffer);
 	}
 	
 	if (pipeBuffer != nullptr)
