@@ -16,12 +16,10 @@
  */
 
 #include <algorithm>	// std::min
-#include <chrono>		// std::chrono
 #include <climits>		// CHAR_BIT
 #include <cstdio>		// fprintf
 #include <cstdlib>		// atof, atoi, free, malloc
 #include <cstring>		// memset, strcmp
-#include <limits>		// std::numeric_limits
 #include <type_traits>	// std::is_unsigned
 #include <unistd.h>		// getopt, fd_set, read, select, timeval
 
@@ -90,7 +88,6 @@ struct Options
 	
 	// the rest of these defaults I just thought were reasonable :)
 	PaStreamFlags streamFlags = paNoFlag;
-	double timeout = std::numeric_limits<double>::infinity();
 	int verbosity = 1;
 };
 
@@ -98,14 +95,13 @@ static
 void printUsage(void)
 {
 	fprintf(stdout,
-		"usage: pipeplayer [-h] [-c <channels>] [-f <format>] [-r <sample rate>] [-b <buffer size>] [-d <feature>] [-t <timeout>] [-v <level>]\n"
+		"usage: pipeplayer [-h] [-c <channels>] [-f <format>] [-r <sample rate>] [-b <buffer size>] [-d <feature>] [-v <level>]\n"
 		"\t-h: prints this message and exits\n"
 		"\t-c <channels>: number of channels (integer), default: 1\n"
 		"\t-f <sample format>: sample format (f, s16, s32, s24, s8, u8), default: u8\n"
 		"\t-r <sample rate>: sample rate (double-precision floating point), default: 22256.0\n"
 		"\t-b <buffer size>: buffer size in samples (integer), default: 370\n"
 		"\t-d <feature>: feature to disable (clipping, dithering), default: none\n"
-		"\t-t <timeout>: timeout in seconds after no new data arrives (double-precision floating point), default: forever\n"
 		"\t-v <level>: log verbosity level (integer), default: 1\n"
 	);
 }
@@ -230,9 +226,6 @@ int getOpts(int argc, char* argv[], Options& options)
 						fprintf(stderr, "argument %s to option '-%c' is invalid\n", optarg, opt);
 					}
 				}
-				break;
-			case 't':
-				options.timeout = getDoubleArg(opt, defaults.timeout);
 				break;
 			case 'v':
 				options.verbosity = getIntArg(opt, defaults.verbosity);
@@ -370,14 +363,9 @@ int main(int argc, char* argv[])
 	
 	if (result == 0)
 	{
-		std::chrono::duration<double> timeout(options.timeout);
-		
-		std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-		std::chrono::time_point<std::chrono::high_resolution_clock> then = now;
-		
 		size_t byteIndex = 0;
 		bool stdinOpen = true;
-		while (stdinOpen && (now - then) < timeout && (error = Pa_IsStreamActive(stream)) == 1)
+		while (stdinOpen && (error = Pa_IsStreamActive(stream)) == 1)
 		{
 			ring_buffer_size_t framesAvailable = PaUtil_GetRingBufferWriteAvailable(&callbackData.ringBuffer);
 			if (framesAvailable == callbackData.ringBuffer.bufferSize)
@@ -412,13 +400,10 @@ int main(int argc, char* argv[])
 					framesAvailable -= n;
 					byteIndex = 0;
 				}
-				then = now;	// reset our timeout timer after we successfully read from stdin
 			}
-			
-			now = std::chrono::high_resolution_clock::now();
 		}
 		
-		if (stdinOpen && (now - then) < timeout)
+		if (stdinOpen)
 		{
 			INFO("timed out waiting for input pipe\n");
 		}
