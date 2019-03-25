@@ -268,11 +268,13 @@ int main(int argc, char* argv[])
 #define FATAL(...) ERROR(__VA_ARGS__) result = 1;
 	
 	size_t frameSize = (size_t)options.sampleSize * options.channels;
+	size_t bufferSize = options.framesPerBuffer * frameSize;
+	
 	uint8_t* pipeBuffer = nullptr;
 	if (result == 0)
 	{
 		DEBUG("allocating %zu byte pipe buffer\n", frameSize);
-		pipeBuffer = (uint8_t*)malloc(frameSize);	// staging area for incoming sound data from stdin
+		pipeBuffer = (uint8_t*)malloc(bufferSize);	// staging area for incoming sound data from stdin
 		if (pipeBuffer == nullptr)
 		{
 			FATAL("could not allocate memory for pipe buffer\n");
@@ -384,8 +386,11 @@ int main(int argc, char* argv[])
 			}
 			while (framesAvailable > 0 && byteIndex < frameSize)
 			{
+				size_t bytesAvailable = framesAvailable * frameSize;
+				size_t len = std::min( bytesAvailable, bufferSize - byteIndex );
+				
 				// stage our data, but also check for EOF
-				ssize_t n_read = read(STDIN_FILENO, &pipeBuffer[byteIndex++], 1);
+				ssize_t n_read = read(STDIN_FILENO, pipeBuffer + byteIndex, len);
 				
 				if ( n_read < 0 )
 				{
@@ -398,10 +403,13 @@ int main(int argc, char* argv[])
 					break;
 				}
 				
-				if (byteIndex == frameSize)
+				byteIndex += n_read;
+				
+				if (byteIndex >= frameSize)
 				{
-					PaUtil_WriteRingBuffer(&callbackData.ringBuffer, pipeBuffer, 1);	// because we can't read() directly into the ring buffer
-					--framesAvailable;
+					size_t n = byteIndex / frameSize;
+					PaUtil_WriteRingBuffer(&callbackData.ringBuffer, pipeBuffer, n);	// because we can't read() directly into the ring buffer
+					framesAvailable -= n;
 					byteIndex = 0;
 				}
 				then = now;	// reset our timeout timer after we successfully read from stdin
