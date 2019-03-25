@@ -22,7 +22,6 @@
 #include <cstdlib>		// atof, atoi, free, malloc
 #include <cstring>		// memset, strcmp
 #include <limits>		// std::numeric_limits
-#include <thread>		// std::this_thread
 #include <type_traits>	// std::is_unsigned
 #include <unistd.h>		// getopt, fd_set, read, select, timeval
 
@@ -75,17 +74,6 @@ int streamCallback(
 	memset((uint8_t*)outputBuffer + bytesRead, callbackData->silenceByte, bytesLeft);
 	
 	return paContinue;
-}
-
-static
-int stdinReady(void)
-{
-	fd_set readfds;
-	FD_ZERO(&readfds);
-	FD_SET(STDIN_FILENO, &readfds);
-	timeval tv = {0};
-	
-	return select(STDIN_FILENO + 1, &readfds, nullptr, nullptr, &tv);
 }
 
 struct Options
@@ -380,52 +368,45 @@ int main(int argc, char* argv[])
 	
 	if (result == 0)
 	{
-		std::chrono::duration<double> frameTime(options.framesPerBuffer / options.sampleRate);
-		std::chrono::duration<double> sleepTime(frameTime / 2.0);
 		std::chrono::duration<double> timeout(options.timeout);
 		
 		std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 		std::chrono::time_point<std::chrono::high_resolution_clock> then = now;
 		
-		DEBUG("entering main loop with a sleep time of %lldms and timeout of %gs\n",
-			std::chrono::duration_cast<std::chrono::milliseconds>(sleepTime).count(),
-			timeout.count());
-		
 		size_t byteIndex = 0;
 		bool stdinOpen = true;
 		while (stdinOpen && (now - then) < timeout && (error = Pa_IsStreamActive(stream)) == 1)
 		{
-			bool canGetByte = true;
 			ring_buffer_size_t framesAvailable = PaUtil_GetRingBufferWriteAvailable(&callbackData.ringBuffer);
 			if (framesAvailable == callbackData.ringBuffer.bufferSize)
 			{
 				WARN("ring buffer starved!\n");
 			}
-			while (canGetByte && framesAvailable > 0 && byteIndex < frameSize)
+			while (framesAvailable > 0 && byteIndex < frameSize)
 			{
-				switch (stdinReady())
+				// stage our data, but also check for EOF
+				ssize_t n_read = read(STDIN_FILENO, &pipeBuffer[byteIndex++], 1);
+				
+				if ( n_read < 0 )
 				{
-					case -1:
-						FATAL("error when checking input pipe\n");
-						break;
-					case 0:
-						WARN("can't get bytes anymore\n");
-						canGetByte = false;
-						break;
-					default:
-						stdinOpen = read(STDIN_FILENO, &pipeBuffer[byteIndex++], 1) > 0;	// stage our data, but also check for EOF
-						if (byteIndex == frameSize)
-						{
-							PaUtil_WriteRingBuffer(&callbackData.ringBuffer, pipeBuffer, 1);	// because we can't read() directly into the ring buffer
-							--framesAvailable;
-							byteIndex = 0;
-						}
-						then = now;	// reset our timeout timer after we successfully read from stdin
-						break;
+					FATAL("error when checking input pipe\n");
 				}
+				
+				if ( n_read == 0 )
+				{
+					stdinOpen = false;
+					break;
+				}
+				
+				if (byteIndex == frameSize)
+				{
+					PaUtil_WriteRingBuffer(&callbackData.ringBuffer, pipeBuffer, 1);	// because we can't read() directly into the ring buffer
+					--framesAvailable;
+					byteIndex = 0;
+				}
+				then = now;	// reset our timeout timer after we successfully read from stdin
 			}
 			
-			std::this_thread::sleep_for(sleepTime);
 			now = std::chrono::high_resolution_clock::now();
 		}
 		
