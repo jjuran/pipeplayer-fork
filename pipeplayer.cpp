@@ -80,11 +80,11 @@ struct Options
 	// correspond to the values used for Mac Sound Driver emulation, for which
 	// this utility was originally written ;)
 	
-	int channels = 1;
-	PaSampleFormat sampleFormat = paUInt8;
-	size_t sampleSize = 1;
-	double sampleRate = 22256.0;
-	long framesPerBuffer = 370;
+	const int channels = 1;
+	const PaSampleFormat sampleFormat = paUInt8;
+	const size_t sampleSize = 1;
+	const double sampleRate = 22256.0;
+	const long framesPerBuffer = 370;
 	
 	// the rest of these defaults I just thought were reasonable :)
 	PaStreamFlags streamFlags = paNoFlag;
@@ -95,12 +95,8 @@ static
 void printUsage(void)
 {
 	fprintf(stdout,
-		"usage: pipeplayer [-h] [-c <channels>] [-f <format>] [-r <sample rate>] [-b <buffer size>] [-d <feature>] [-v <level>]\n"
+		"usage: pipeplayer [-h] [-d <feature>] [-v <level>]\n"
 		"\t-h: prints this message and exits\n"
-		"\t-c <channels>: number of channels (integer), default: 1\n"
-		"\t-f <sample format>: sample format (f, s16, s32, s24, s8, u8), default: u8\n"
-		"\t-r <sample rate>: sample rate (double-precision floating point), default: 22256.0\n"
-		"\t-b <buffer size>: buffer size in samples (integer), default: 370\n"
 		"\t-d <feature>: feature to disable (clipping, dithering), default: none\n"
 		"\t-v <level>: log verbosity level (integer), default: 1\n"
 	);
@@ -133,23 +129,6 @@ double getDoubleArg(char opt, double defaultArg)
 static
 int getOpts(int argc, char* argv[], Options& options)
 {
-	const size_t kFormatOptsCount = 6;
-	struct FormatOptMapping
-	{
-		const char* optarg;
-		PaSampleFormat sampleFormat;
-		size_t sampleSize;
-	};
-	FormatOptMapping formatOptMap[kFormatOptsCount] =
-	{
-		{ "f", paFloat32, 4 },
-		{ "s16", paInt16, 2 },
-		{ "s32", paInt32, 4 },
-		{ "s24", paInt24, 3 },
-		{ "s8", paInt8, 1 },
-		{ "u8", paUInt8, 1 },
-	};
-	
 	const size_t kDisableOptsCount = 2;
 	struct DisableOptMapping
 	{
@@ -173,42 +152,6 @@ int getOpts(int argc, char* argv[], Options& options)
 			case 'h':
 				printUsage();
 				exit(0);
-			case 'c':
-				options.channels = getIntArg(opt, defaults.channels);
-				break;
-			case 'f':
-				{
-					size_t i = 0;
-					for (; i < kFormatOptsCount; ++i)
-					{
-						FormatOptMapping& mapping = formatOptMap[i];
-						if (strcmp(mapping.optarg, optarg) == 0)
-						{
-							options.sampleFormat = mapping.sampleFormat;
-							options.sampleSize = mapping.sampleSize;
-							break;
-						}
-					}
-					if (i == kFormatOptsCount)
-					{
-						for (i = 0; i < kFormatOptsCount; ++i)
-						{
-							FormatOptMapping& mapping = formatOptMap[i];
-							if (mapping.sampleFormat == defaults.sampleFormat)
-							{
-								fprintf(stderr, "argument %s to option '-%c' is invalid, using default: %s\n", optarg, opt, mapping.optarg);
-								break;
-							}
-						}
-					}
-				}
-				break;
-			case 'r':
-				options.sampleRate = getDoubleArg(opt, defaults.sampleRate);
-				break;
-			case 'b':
-				options.framesPerBuffer = getIntArg(opt, defaults.framesPerBuffer);
-				break;
 			case 'd':
 				{
 					size_t i = 0;
