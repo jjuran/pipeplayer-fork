@@ -21,6 +21,7 @@
 #include <cstdlib>		// atof, atoi, free, malloc
 #include <cstring>		// memset, strcmp
 #include <type_traits>	// std::is_unsigned
+#include <stdint.h>
 #include <unistd.h>		// getopt, fd_set, read, select, timeval
 
 #include "portaudio.h"
